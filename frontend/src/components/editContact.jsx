@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import ErrorPanel from './errorPanel';
+import { validateContact } from '../utils/validation';
 
 export default function EditContact(props) {
-  // states for form
+  // states for form (оставляем как было)
   let [firstName, setFirstName] = useState(props.firstname);
   let [lastName, setLastName] = useState(props.lastname);
   let [email, setEmail] = useState(props.email);
@@ -10,40 +12,47 @@ export default function EditContact(props) {
   let [address, setAddress] = useState(props.address);
   let [notes, setNotes] = useState(props.notes);
 
+  // Добавляем только состояния для ошибок
+  const [validationErrors, setValidationErrors] = useState({});
+
   let handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Валидация перед отправкой
+    const contactData = {
+      first_name: firstName,
+      last_name: lastName,
+      email: email,
+      telephone: telephone,
+      company: company,
+      address: address,
+      notes: notes
+    };
+
+    const validation = validateContact(contactData);
+
+    if (!validation.isValid) {
+      setValidationErrors(validation.errors);
+      return; // Не отправляем если есть ошибки
+    }
+
+    // Очищаем ошибки если валидация прошла
+    setValidationErrors({});
+
     try {
       let response = await fetch(
         `http://localhost:8000/update-contact/${props.contactId}`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            first_name: firstName,
-            last_name: lastName,
-            email: email,
-            telephone: telephone,
-            company: company,
-            address: address,
-            notes: notes,
-          }),
+          body: JSON.stringify(contactData),
         }
       );
 
       if (response.status === 200) {
-        setFirstName('');
-        setLastName('');
-        setEmail('');
-        setTelephone('');
-        setCompany('');
-        setAddress('');
-        setNotes('');
-
         // reloads the page
         window.location.reload(true);
-      }
-
-      if (response.status !== 200) {
+      } else {
         console.log(response.text());
       }
     } catch (err) {
@@ -51,8 +60,27 @@ export default function EditContact(props) {
     }
   };
 
+  // Функция для очистки ошибок при изменении поля
+  const clearFieldError = (fieldName) => {
+    if (validationErrors[fieldName]) {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldName];
+        return newErrors;
+      });
+    }
+  };
+
   return (
     <>
+      {/* Показываем ошибки валидации */}
+      {Object.keys(validationErrors).length > 0 && (
+        <ErrorPanel
+          errors={validationErrors}
+          onClose={() => setValidationErrors({})}
+        />
+      )}
+
       <div className="bg-slate-100 pb-4">
         <div className="p-4">
           <button
@@ -71,17 +99,24 @@ export default function EditContact(props) {
                   type="text"
                   value={firstName}
                   placeholder={props.firstname}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full border-b px-4 py-2"
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    clearFieldError('first_name');
+                  }}
+                  className={`w-full border-b px-4 py-2 ${validationErrors.first_name ? 'border-red-500 bg-red-50' : ''
+                    }`}
                 />
                 <input
                   type="text"
                   value={lastName}
                   placeholder={props.lastname}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="w-full border-b px-4 py-2"
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    clearFieldError('last_name');
+                  }}
+                  className={`w-full border-b px-4 py-2 ${validationErrors.last_name ? 'border-red-500 bg-red-50' : ''
+                    }`}
                 />
-
                 <input
                   type="text"
                   value={company}
@@ -91,13 +126,11 @@ export default function EditContact(props) {
                 />
               </div>
 
-              <div className=" mt-4 border-y border-gray-100">
+              <div className="mt-4 border-y border-gray-100">
                 <input
                   type="text"
                   value={telephone}
-                  placeholder={
-                    props.telephone === '' ? 'Telephone' : props.telephone
-                  }
+                  placeholder={props.telephone === '' ? 'Telephone' : props.telephone}
                   onChange={(e) => setTelephone(e.target.value)}
                   className="w-full border-b px-4 py-2"
                 />
@@ -108,8 +141,12 @@ export default function EditContact(props) {
                   type="text"
                   value={email}
                   placeholder={props.email === '' ? 'Email' : props.email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border-b px-4 py-2"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearFieldError('email');
+                  }}
+                  className={`w-full border-b px-4 py-2 ${validationErrors.email ? 'border-red-500 bg-red-50' : ''
+                    }`}
                 />
               </div>
 
