@@ -3,13 +3,30 @@ from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from sqlalchemy.orm import Session
 
-import models
+import models, re
 from db import SessionLocal
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+
 app = FastAPI()
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = []
+    for error in exc.errors():
+        field = error['loc'][-1] if error['loc'] else 'unknown'
+        msg = error['msg']
+        errors.append(f"{field}: {msg}")
+    
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": "Validation error", "errors": errors},
+    )
 
 # allows cross-origin requests from React
 origins = [
@@ -27,20 +44,88 @@ app.add_middleware(
 
 
 class Contact(BaseModel):
-    """Contact model"""
-
+    """Contact model with validation"""
+    
     id: Optional[int] = None
-    first_name: str
-    last_name: str
-    company: Optional[str] = None
-    telephone: Optional[str] = None
-    email: Optional[str] = None
-    address: Optional[str] = None
-    notes: Optional[str] = None
+    first_name: str = Field(..., min_length=1, max_length=100, example="John")
+    last_name: str = Field(..., min_length=1, max_length=100, example="Doe")
+    company: Optional[str] = Field(None, max_length=100, example="Acme Inc")
+    telephone: Optional[str] = Field(None, max_length=20, example="+1234567890")
+    email: Optional[str] = Field(None, example="john@example.com")
+    address: Optional[str] = Field(None, max_length=200, example="123 Main St")
+    notes: Optional[str] = Field(None, max_length=500, example="Important client")
+
+    @field_validator('first_name')
+    def validate_first_name(cls, v: str) -> str:
+        """Validate first name"""
+        if not v or not v.strip():
+            raise ValueError('First name is required')
+        
+        v = v.strip()
+        
+        if len(v) < 2:
+            raise ValueError('First name must be at least 2 characters')
+        
+        if len(v) > 50:
+            raise ValueError('First name cannot exceed 50 characters')
+        
+        if not re.match(r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$', v):
+            raise ValueError('First name can only contain Latin or Cyrillic characters')
+        
+        return v
+
+    @field_validator('last_name')
+    def validate_last_name(cls, v: str) -> str:
+        """Validate last name"""
+        if not v or not v.strip():
+            raise ValueError('Last name is required')
+        
+        v = v.strip()
+        
+        if len(v) < 2:
+            raise ValueError('Last name must be at least 2 characters')
+        
+        if len(v) > 50:
+            raise ValueError('Last name cannot exceed 50 characters')
+        
+        if not re.match(r'^[a-zA-Zа-яА-ЯёЁ\s\-]+$', v):
+            raise ValueError('Last name can only contain Latin or Cyrillic characters')
+        
+        return v
+
+    @field_validator('email')
+    def validate_email(cls, v):
+        if v is None or v == "":
+            return v
+        
+        email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_regex, v):
+            raise ValueError('Please enter a valid email address')
+        
+        return v
+
+    @field_validator('telephone')
+    def validate_telephone(cls, v):
+        if v is None or v == "":
+            return v
+        
+        # Простая проверка телефона (как на клиенте)
+        phone_regex = r'^[\+]?[1-9][\d]{0,15}$'
+        cleaned_phone = re.sub(r'[\s\-\(\)]', '', v)
+        
+        if not re.match(phone_regex, cleaned_phone):
+            raise ValueError('Please enter a valid phone number')
+        
+        return v
+
+    @field_validator('notes')
+    def validate_notes(cls, v):
+        if v and len(v) > 500:
+            raise ValueError('Notes cannot exceed 500 characters')
+        return v
 
     class Config:
         """Pydantic config"""
-
         orm_mode = True
 
 
@@ -71,25 +156,19 @@ def get_contact(contact_id: int, db: Session = Depends(get_db)):
     "/create-contact", response_model=Contact, status_code=status.HTTP_201_CREATED
 )
 def create_contact(contact: Contact, db: Session = Depends(get_db)):
-    """CREATE: Create a new contact"""
-
-    db_contact = (
-        db.query(models.Contact)
-        .filter(
-            models.Contact.first_name == contact.first_name
-            and models.Contact.last_name == contact.last_name
-            and models.Contact.company == contact.company
-            and models.Contact.telephone == contact.telephone
-            and models.Contact.email == contact.email
-            and models.Contact.address == contact.address
-            and models.Contact.notes == contact.notes
-        )
-        .first()
-    )
+    """CREATE: Create a new contact with validation"""
+    
+    # Проверка на дубликаты (упрощенная)
+    db_contact = db.query(models.Contact).filter(
+        models.Contact.first_name == contact.first_name,
+        models.Contact.last_name == contact.last_name,
+        models.Contact.email == contact.email
+    ).first()
 
     if db_contact is not None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="🤨 Contact already exists"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contact with same name and email already exists"
         )
 
     new_contact = models.Contact(
@@ -104,6 +183,7 @@ def create_contact(contact: Contact, db: Session = Depends(get_db)):
 
     db.add(new_contact)
     db.commit()
+    db.refresh(new_contact)
 
     return new_contact
 
@@ -114,11 +194,31 @@ def create_contact(contact: Contact, db: Session = Depends(get_db)):
     status_code=status.HTTP_200_OK,
 )
 def update_contact(contact_id: int, contact: Contact, db: Session = Depends(get_db)):
-    """UPDATE: Update a contact"""
-    contact_to_update = (
-        db.query(models.Contact).filter(models.Contact.id == contact_id).first()
-    )
+    """UPDATE: Update a contact with validation"""
+    
+    contact_to_update = db.query(models.Contact).filter(models.Contact.id == contact_id).first()
+    
+    if contact_to_update is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contact not found"
+        )
 
+    # Проверка на дубликаты (исключая текущий контакт)
+    duplicate_contact = db.query(models.Contact).filter(
+        models.Contact.first_name == contact.first_name,
+        models.Contact.last_name == contact.last_name,
+        models.Contact.email == contact.email,
+        models.Contact.id != contact_id
+    ).first()
+
+    if duplicate_contact:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Another contact with same name and email already exists"
+        )
+
+    # Обновляем поля
     contact_to_update.first_name = contact.first_name
     contact_to_update.last_name = contact.last_name
     contact_to_update.company = contact.company
@@ -128,6 +228,7 @@ def update_contact(contact_id: int, contact: Contact, db: Session = Depends(get_
     contact_to_update.notes = contact.notes
 
     db.commit()
+    db.refresh(contact_to_update)
 
     return contact_to_update
 
