@@ -44,8 +44,9 @@ const isValidEmail = (email) => {
 };
 
 const isValidPhone = (phone) => {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+    const cleanedPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const phoneRegex = /^\+?[0-9]\d{0,14}$|^[1-9]\d{0,15}$/;
+    return phoneRegex.test(cleanedPhone);
 };
 
 export const formatValidationErrors = (errors) => {

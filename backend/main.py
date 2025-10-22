@@ -109,9 +109,9 @@ class Contact(BaseModel):
         if v is None or v == "" or v == "NULL":
             return v
         
-        cleaned_phone = re.sub(r'[\s\-\(\)\+]', '', v)
+        cleaned_phone = re.sub(r'[\s\-\(\)]', '', v)
         
-        phone_regex = r'^\d{1,16}$'
+        phone_regex = r'^\+?[0-9]\d{0,14}$|^[1-9]\d{0,15}$'
         
         if not re.match(phone_regex, cleaned_phone):
             raise ValueError('Please enter a valid phone number')
