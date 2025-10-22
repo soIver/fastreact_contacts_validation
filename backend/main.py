@@ -95,7 +95,7 @@ class Contact(BaseModel):
 
     @field_validator('email')
     def validate_email(cls, v):
-        if v is None or v == "":
+        if v is None or v == "" or v == "NULL":
             return v
         
         email_regex = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
@@ -106,17 +106,17 @@ class Contact(BaseModel):
 
     @field_validator('telephone')
     def validate_telephone(cls, v):
-        if v is None or v == "":
+        if v is None or v == "" or v == "NULL":
             return v
         
-        # Простая проверка телефона (как на клиенте)
-        phone_regex = r'^[\+]?[1-9][\d]{0,15}$'
-        cleaned_phone = re.sub(r'[\s\-\(\)]', '', v)
+        cleaned_phone = re.sub(r'[\s\-\(\)\+]', '', v)
+        
+        phone_regex = r'^\d{1,16}$'
         
         if not re.match(phone_regex, cleaned_phone):
             raise ValueError('Please enter a valid phone number')
         
-        return v
+        return cleaned_phone
 
     @field_validator('notes')
     def validate_notes(cls, v):

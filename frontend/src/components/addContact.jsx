@@ -84,11 +84,23 @@ export default function AddContact(props) {
 
   return (
     <section className="relative z-0">
-      {/* ... остальной код без изменений ... */}
+      <div className="sticky top-0 flex items-center justify-between border-b-2 border-slate-200 bg-slate-700 p-4 text-white">
+        <div className="font-bold">Contacts</div>
+        <div>
+          {isOpen ? (
+            <button onClick={() => setIsOpen(false)}>
+              <XIcon className="h-6 w-6 text-white" />
+            </button>
+          ) : (
+            <button onClick={() => setIsOpen(true)}>
+              <PlusIcon className="h-6 w-6 text-white" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {isOpen ? (
         <div className="bg-gray-100 pb-4">
-          {/* Показываем ошибки валидации */}
           {Object.keys(validationErrors).length > 0 && (
             <ErrorPanel
               errors={validationErrors}
@@ -128,10 +140,69 @@ export default function AddContact(props) {
                       }`}
                     required
                   />
-                  {/* ... остальные поля без изменений ... */}
+                  <input
+                    type="text"
+                    value={company}
+                    placeholder="Company"
+                    onChange={(e) => setCompany(e.target.value)}
+                    className="w-full border-b px-4 py-2"
+                  />
+                </div>
+
+                <div className=" mt-4 border-y border-gray-100">
+                  <input
+                    type="text"
+                    value={telephone}
+                    placeholder="Telephone"
+                    onChange={(e) => setTelephone(e.target.value)}
+                    className="w-full border-b px-4 py-2"
+                  />
+                </div>
+
+                <div className="mt-4 border-y border-gray-100">
+                  <input
+                    type="text"
+                    value={email}
+                    placeholder="Email"
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full border-b px-4 py-2"
+                  />
+                </div>
+
+                <div className="mt-4 border-y border-gray-100">
+                  <input
+                    type="text"
+                    value={address}
+                    placeholder="Address"
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full border-b px-4 py-2"
+                  />
+                </div>
+
+                <div className="mt-4 border-y border-gray-100">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pt-1 pl-4 text-gray-400">
+                      Notes
+                    </div>
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full whitespace-pre border-b px-4 py-2 pt-6"
+                    />
+                  </div>
                 </div>
               </div>
-              {/* ... остальная форма без изменений ... */}
+              <div className="px-4">
+                <button
+                  type="submit"
+                  className="w-full rounded bg-green-500 px-4 py-3 capitalize text-white duration-100 ease-in-out hover:bg-green-700"
+                >
+                  <span className="text-center tracking-wide">
+                    create contact
+                  </span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
